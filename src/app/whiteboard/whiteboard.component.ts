@@ -18,9 +18,8 @@ export class WhiteboardComponent implements AfterViewInit {
   private strokeColor = '#000000';
   private strokeWidth = 2;
   public eraserActive = false;
-  public mode = 'brush'; // Default to brush
-  private previousMode = 'brush'; // Track previous mode
-
+  public mode = 'brush';
+  private previousMode = 'brush';
   private drawingSubscription!: Subscription;
 
   constructor(private db: AngularFireDatabase) { }
@@ -54,14 +53,27 @@ export class WhiteboardComponent implements AfterViewInit {
     if (!pos) return;
 
     if (this.eraserActive) {
-      const shape = this.layer.getIntersection(pos); // Get shape at cursor
+      const shape = this.layer.getIntersection(pos);
       if (shape) {
-        shape.destroy(); // Erase shape
+        this.removeShapeFromDatabase(shape);
+        shape.destroy();
         this.layer.batchDraw();
       }
     } else {
       this.startDrawing();
     }
+  }
+
+  removeShapeFromDatabase(shape: Konva.Shape) {
+    const shapeId = shape.id();
+
+    this.db.list('drawings', ref => ref.orderByChild('shapeId').equalTo(shapeId))
+      .snapshotChanges()
+      .subscribe(actions => {
+        actions.forEach(action => {
+          this.db.list('drawings').remove(action.key!);
+        });
+      });
   }
 
   startDrawing() {
@@ -138,6 +150,7 @@ export class WhiteboardComponent implements AfterViewInit {
     if (!this.shape) return;
 
     const shapeData: any = {
+      shapeId: this.shape.id(),
       type: this.mode,
       x: this.shape.x(),
       y: this.shape.y(),
@@ -154,17 +167,9 @@ export class WhiteboardComponent implements AfterViewInit {
       shapeData.radius = (this.shape as Konva.Circle).radius();
     }
 
-    this.db.list('drawings').push(shapeData)
-      .then(() => {
-        console.log('Shape saved successfully');
-      })
-      .catch((error) => {
-        console.error('Error saving shape: ', error);
-      });
-
+    this.db.list('drawings').push(shapeData);
     this.shape = null;
   }
-
 
   saveDrawing(points: number[]) {
     const color = this.eraserActive ? 'white' : this.strokeColor;
@@ -254,9 +259,9 @@ export class WhiteboardComponent implements AfterViewInit {
 
   toggleEraser() {
     if (this.eraserActive) {
-      this.mode = this.previousMode; // Revert to previous mode
+      this.mode = this.previousMode;
     } else {
-      this.previousMode = this.mode; // Save the current mode
+      this.previousMode = this.mode;
       this.mode = 'eraser';
     }
     this.eraserActive = !this.eraserActive;
