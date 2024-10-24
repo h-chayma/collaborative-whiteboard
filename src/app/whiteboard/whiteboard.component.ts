@@ -18,7 +18,8 @@ export class WhiteboardComponent implements AfterViewInit {
   private strokeColor = '#000000';
   private strokeWidth = 2;
   public eraserActive = false;
-  public mode = 'brush';
+  public mode = 'brush'; // Default to brush
+  private previousMode = 'brush'; // Track previous mode
 
   private drawingSubscription!: Subscription;
 
@@ -43,46 +44,58 @@ export class WhiteboardComponent implements AfterViewInit {
     this.layer = new Konva.Layer();
     this.stage.add(this.layer);
 
-    this.stage.on('mousedown touchstart', (e) => this.startDrawing());
+    this.stage.on('mousedown touchstart', (e) => this.onMouseDown());
     this.stage.on('mouseup touchend', () => this.stopDrawing());
     this.stage.on('mousemove touchmove', (e) => this.draw(e));
+  }
+
+  onMouseDown() {
+    const pos = this.stage.getPointerPosition();
+    if (!pos) return;
+
+    if (this.eraserActive) {
+      const shape = this.layer.getIntersection(pos); // Get shape at cursor
+      if (shape) {
+        shape.destroy(); // Erase shape
+        this.layer.batchDraw();
+      }
+    } else {
+      this.startDrawing();
+    }
   }
 
   startDrawing() {
     this.isDrawing = true;
     const pos = this.stage.getPointerPosition();
-    if (!pos) return;
-    if (this.eraserActive) return;
+    if (!pos || this.eraserActive) return;
 
     if (this.mode === 'brush') {
       this.lastLine = new Konva.Line({
         stroke: this.strokeColor,
         strokeWidth: this.strokeWidth,
-        globalCompositeOperation: this.mode === 'brush' ? 'source-over' : 'destination-out',
+        globalCompositeOperation: 'source-over',
         lineCap: 'round',
         lineJoin: 'round',
-        points: [pos!.x, pos!.y, pos!.x, pos!.y],
+        points: [pos.x, pos.y, pos.x, pos.y],
       });
-
       this.layer.add(this.lastLine);
     } else if (this.mode === 'rectangle' || this.mode === 'circle') {
       this.shape = this.mode === 'rectangle' ?
         new Konva.Rect({
-          x: pos!.x,
-          y: pos!.y,
+          x: pos.x,
+          y: pos.y,
           stroke: this.strokeColor,
           strokeWidth: this.strokeWidth,
           width: 0,
           height: 0,
         }) :
         new Konva.Circle({
-          x: pos!.x,
-          y: pos!.y,
+          x: pos.x,
+          y: pos.y,
           stroke: this.strokeColor,
           strokeWidth: this.strokeWidth,
           radius: 0,
         });
-
       this.layer.add(this.shape);
     }
   }
@@ -101,53 +114,57 @@ export class WhiteboardComponent implements AfterViewInit {
     if (!this.isDrawing) return;
     event.evt.preventDefault();
     const pos = this.stage.getPointerPosition();
+    if (!pos) return;
 
-    if (this.eraserActive) {
-      if (this.shape) {
-        this.shape.x(pos!.x);
-        this.shape.y(pos!.y);
-        this.layer.batchDraw();
-      }
-    } else {
-      if (this.mode === 'brush' && this.lastLine) {
-        const newPoints = this.lastLine.points().concat([pos!.x, pos!.y]);
-        this.lastLine.points(newPoints);
-        this.layer.batchDraw();
-        this.saveDrawing(this.lastLine.points());
-      } else if ((this.mode === 'rectangle' || this.mode === 'circle') && this.shape) {
-        const width = pos!.x - this.shape.x();
-        const height = pos!.y - this.shape.y();
+    if (this.mode === 'brush' && this.lastLine) {
+      const newPoints = this.lastLine.points().concat([pos.x, pos.y]);
+      this.lastLine.points(newPoints);
+    } else if ((this.mode === 'rectangle' || this.mode === 'circle') && this.shape) {
+      const width = pos.x - this.shape.x();
+      const height = pos.y - this.shape.y();
 
-        if (this.mode === 'rectangle') {
-          this.shape.width(width);
-          this.shape.height(height);
-        } else if (this.mode === 'circle') {
-          const radius = Math.sqrt(width * width + height * height);
-          (this.shape as Konva.Circle).radius(radius);
-        }
-
-        this.layer.batchDraw();
+      if (this.mode === 'rectangle') {
+        this.shape.width(width);
+        this.shape.height(height);
+      } else if (this.mode === 'circle') {
+        const radius = Math.sqrt(width * width + height * height);
+        (this.shape as Konva.Circle).radius(radius);
       }
     }
+    this.layer.batchDraw();
   }
 
   saveShape() {
     if (!this.shape) return;
 
-    const shapeData = {
+    const shapeData: any = {
       type: this.mode,
       x: this.shape.x(),
       y: this.shape.y(),
       stroke: this.shape.stroke(),
       strokeWidth: this.shape.strokeWidth(),
-      width: this.mode === 'rectangle' ? this.shape.width() : undefined,
-      height: this.mode === 'rectangle' ? this.shape.height() : undefined,
-      radius: this.mode === 'circle' ? (this.shape as Konva.Circle).radius() : undefined,
     };
 
-    this.db.list('drawings').push(shapeData);
+    if (this.mode === 'rectangle') {
+      shapeData.width = this.shape.width();
+      shapeData.height = this.shape.height();
+    }
+
+    if (this.mode === 'circle') {
+      shapeData.radius = (this.shape as Konva.Circle).radius();
+    }
+
+    this.db.list('drawings').push(shapeData)
+      .then(() => {
+        console.log('Shape saved successfully');
+      })
+      .catch((error) => {
+        console.error('Error saving shape: ', error);
+      });
+
     this.shape = null;
   }
+
 
   saveDrawing(points: number[]) {
     const color = this.eraserActive ? 'white' : this.strokeColor;
@@ -189,7 +206,7 @@ export class WhiteboardComponent implements AfterViewInit {
 
   drawExistingShape(item: any) {
     let shape;
-    if (item.type === 'rectangle') {
+    if (item.type === 'rectangle' && item.width && item.height) {
       shape = new Konva.Rect({
         x: item.x,
         y: item.y,
@@ -198,7 +215,7 @@ export class WhiteboardComponent implements AfterViewInit {
         width: item.width,
         height: item.height,
       });
-    } else if (item.type === 'circle') {
+    } else if (item.type === 'circle' && item.radius) {
       shape = new Konva.Circle({
         x: item.x,
         y: item.y,
@@ -236,8 +253,13 @@ export class WhiteboardComponent implements AfterViewInit {
   }
 
   toggleEraser() {
+    if (this.eraserActive) {
+      this.mode = this.previousMode; // Revert to previous mode
+    } else {
+      this.previousMode = this.mode; // Save the current mode
+      this.mode = 'eraser';
+    }
     this.eraserActive = !this.eraserActive;
-    this.mode = this.eraserActive ? 'eraser' : 'brush';
   }
 
   clearCanvas() {
