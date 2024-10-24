@@ -1,32 +1,60 @@
-<div class="container mt-4">
-    <div class="row mb-3">
-        <div class="col text-center">
-            <h2>Collaborative Whiteboard</h2>
+<div class="app-container">
+  <header class="app-header">
+    <h1>Collaborative Whiteboard</h1>
+  </header>
+
+  <div class="main-content d-flex">
+    <div class="controls bg-light shadow-sm p-4">
+      <div class="mb-3">
+        <label for="colorPicker" class="form-label">Color:</label>
+        <input type="color" id="colorPicker" class="form-control" (input)="changeColor($event)" value="#000000" />
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Brush Size:</label>
+        <div class="custom-dropdown">
+          <div class="dropdown-option" (click)="changeBrushSize(2)">
+            <div class="brush-preview small-brush"></div>
+            Thin
+          </div>
+          <div class="dropdown-option" (click)="changeBrushSize(5)">
+            <div class="brush-preview medium-brush"></div>
+            Medium
+          </div>
+          <div class="dropdown-option" (click)="changeBrushSize(10)">
+            <div class="brush-preview large-brush"></div>
+            Large
+          </div>
         </div>
-    </div>
-    <div class="controls mb-3 p-3 border rounded bg-light">
-        <div class="row align-items-center">
-            <div class="col-auto">
-                <label for="colorPicker" class="form-label">Color:</label>
-                <input type="color" id="colorPicker" class="form-control form-control-color"
-                    (input)="changeColor($event)" value="#000000" />
-            </div>
-            <div class="col-auto">
-                <label for="brushSize" class="form-label">Brush Size:</label>
-                <select id="brushSize" class="form-select" (change)="changeBrushSize($event)">
-                    <option value="2">Small</option>
-                    <option value="5">Medium</option>
-                    <option value="10">Large</option>
-                </select>
-            </div>
-            <div class="col-auto">
-                <button class="btn btn-primary" (click)="toggleEraser()">{{ eraserActive ? 'Disable Eraser' : 'Enable
-                    Eraser' }}</button>
-            </div>
-        </div>
+      </div>
+
+      <div class="btn-group mb-3 w-100" role="group" aria-label="Basic example">
+        <button class="btn"
+          [ngClass]="{'btn-outline-primary': !eraserActive && mode !== 'brush', 'btn-primary': mode === 'brush'}"
+          (click)="mode = 'brush'">
+          <i class="fas fa-paint-brush"></i>
+        </button>
+        <button class="btn" [ngClass]="{'btn-outline-primary': !eraserActive, 'btn-primary': eraserActive}"
+          (click)="toggleEraser()">
+          <i class="fas fa-eraser"></i>
+        </button>
+        <button class="btn"
+          [ngClass]="{'btn-outline-primary': mode !== 'rectangle', 'btn-primary': mode === 'rectangle'}"
+          (click)="mode = 'rectangle'">
+          <i class="fas fa-square"></i>
+        </button>
+        <button class="btn" [ngClass]="{'btn-outline-primary': mode !== 'circle', 'btn-primary': mode === 'circle'}"
+          (click)="mode = 'circle'">
+          <i class="fas fa-circle"></i>
+        </button>
+        <button class="btn btn-outline-danger" (click)="clearCanvas()">
+          <i class="fas fa-trash-alt"></i>
+        </button>
+      </div>
     </div>
 
-    <div class="whiteboard border" style="position: relative; width: 100%; height: 500px;">
-        <canvas #canvas style="width: 100%; height: 100%; border: 1px solid #ccc;"></canvas>
+    <div class="whiteboard flex-grow-1">
+      <div #canvasContainer style="border: 1px solid #ccc; width: 100%; height: 600px;"></div>
     </div>
+  </div>
 </div>
